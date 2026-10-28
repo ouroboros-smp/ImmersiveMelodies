@@ -1,27 +1,52 @@
 package immersive_melodies.client.sound;
 
-import net.minecraft.client.resources.sounds.EntityBoundSoundInstance;
+import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
+import net.minecraft.client.resources.sounds.SoundInstance;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 
-public class NoteSoundInstance extends EntityBoundSoundInstance implements CancelableSoundInstance {
+public class NoteSoundInstance extends AbstractTickableSoundInstance implements CancelableSoundInstance {
+    private final Entity entity;
+    private final boolean listenerRelative;
     long age;
     long length;
     long sustain;
     long fallOff;
 
-    public NoteSoundInstance(SoundEvent sound, SoundSource category, float volume, float pitch, long length, long sustain, Entity entity) {
-        super(sound, category, volume, pitch, entity, 1);
+    public NoteSoundInstance(SoundEvent sound, SoundSource category, float volume, float pitch, long length, long sustain, Entity entity, boolean listenerRelative) {
+        super(sound, category, RandomSource.create(1));
 
+        this.volume = volume;
+        this.pitch = pitch;
+        this.entity = entity;
+        this.listenerRelative = listenerRelative;
         this.length = length + sustain;
         this.sustain = sustain;
         this.fallOff = Math.max(50, sustain);
+
+        if (listenerRelative) {
+            this.attenuation = SoundInstance.Attenuation.NONE;
+            this.relative = true;
+        }
+
+        updatePosition();
+    }
+
+    @Override
+    public boolean canPlaySound() {
+        return !entity.isSilent();
     }
 
     @Override
     public void tick() {
-        super.tick();
+        if (entity.isRemoved()) {
+            this.stop();
+            return;
+        }
+
+        updatePosition();
 
         // Fade out
         age += 50;
@@ -46,5 +71,17 @@ public class NoteSoundInstance extends EntityBoundSoundInstance implements Cance
     @Override
     public void cancel() {
         this.age = length - fallOff;
+    }
+
+    private void updatePosition() {
+        if (listenerRelative) {
+            this.x = 0.0;
+            this.y = 0.0;
+            this.z = 0.0;
+        } else {
+            this.x = entity.getX();
+            this.y = entity.getY();
+            this.z = entity.getZ();
+        }
     }
 }

@@ -14,10 +14,14 @@ public final class Config extends JsonConfig {
     @SuppressWarnings("unused")
     public String README = "https://github.com/Luke100000/ImmersiveMelodies/wiki/Config";
 
-    public int getBufferDelay = 75;
+    public int bufferDelay = 75;
     public int maxAudibleDistance = 48;
     public float instrumentVolumeFactor = 1.0f;
     public float perceivedLoudnessAdjustmentFactor = 0.5f;
+    public int humanizationTime = 20;
+    public float humanizationVolume = 0.06f;
+    public float humanizationPitch = 0.02f;
+    public float humanizationLength = 0.04f;
 
     public Map<String, Float> mobInstrumentFactors = Map.of(
             "minecraft:zombie", 0.01f,
@@ -32,12 +36,14 @@ public final class Config extends JsonConfig {
     public float mobInstrumentDropFactor = DEFAULT_EQUIPMENT_DROP_CHANCE;
 
     public boolean showOtherPlayersMelodies = true;
+    public boolean autoSynchronize = true;
     public boolean forceMobsToPickUp = true;
     public boolean clickedHelp = false;
     public boolean loadInbuiltMidis = true;
     public boolean stopGameMusicForPlayers = true;
     public boolean stopGameMusicForMobs = false;
     public int uploadPermissionLevel = 0;
+    public int rightClickToDropEntityInstrumentPermissionLevel = 0;
 
     public Map<Integer, Integer> keycodeToMidi = Map.ofEntries(
             Map.entry(65, 60), // A -> C4
@@ -48,12 +54,11 @@ public final class Config extends JsonConfig {
             Map.entry(72, 69), // H -> A4
             Map.entry(74, 71), // J -> B4
             Map.entry(75, 72), // K -> C5
-            Map.entry(81, 61), // Q -> C#4
-            Map.entry(87, 63), // W -> D#4
-            Map.entry(69, 66), // E -> F#4
-            Map.entry(82, 68), // R -> G#4
-            Map.entry(84, 70), // T -> A#4
-            Map.entry(89, 73)  // Y -> C#5
-    );
 
+            Map.entry(87, 61), // W -> C#4
+            Map.entry(69, 63), // E -> D#4
+            Map.entry(84, 66), // T -> F#4
+            Map.entry(89, 68), // Y -> G#4
+            Map.entry(85, 70)  // U -> A#4
+    );
 }

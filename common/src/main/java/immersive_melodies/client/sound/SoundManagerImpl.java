@@ -21,8 +21,8 @@ public class SoundManagerImpl implements SoundManager {
     }
 
     public CancelableSoundInstance playSound(double x, double y, double z, SoundEvent event, SoundSource category, float volume, float pitch, long length, long sustain, long delay, Entity entity) {
-        delay = Math.max(0, delay + Config.getInstance().getBufferDelay);
-        NoteSoundInstance positionedSoundInstance = new NoteSoundInstance(event, category, volume, pitch, length, sustain, entity);
+        delay = Math.max(0, delay + Config.getInstance().bufferDelay);
+        NoteSoundInstance positionedSoundInstance = new NoteSoundInstance(event, category, volume, pitch, length, sustain, entity, isFirstPerson(entity));
         executor.schedule(() -> {
             this.client.execute(() -> this.client.getSoundManager().play(positionedSoundInstance));
         }, delay, TimeUnit.MILLISECONDS);
@@ -41,10 +41,12 @@ public class SoundManagerImpl implements SoundManager {
     }
 
     @Override
-    public void pauseGameMusic() {
+    public void suppressGameMusic() {
         MusicTrackerAccessor musicTrackerAccessor = (MusicTrackerAccessor) this.client.getMusicManager();
         if (musicTrackerAccessor.getCurrentMusic() != null) {
             this.client.getMusicManager().stopPlaying();
         }
+
+        MusicSuppression.suppress();
     }
 }

@@ -1,3 +1,33 @@
+# 0.8.1
+
+* Fixed bagpipe texture
+
+# 0.8.0
+
+* Added an upload screen mostly as a fallback for when drag and drop doesn't work
+* Free-playing now supports the mouse
+
+# 0.7.0
+
+* Fixed non-ascii file name conflicts
+* Added `autoSynchronize` config to disable auto synchronization of nearby melodies
+* Fixed crashes on Forge
+* Channels are now treated as different tracks
+* Added better free playing UI
+* Offhand now supports selecting melodies
+* You can now play with two instruments at once (why tho?)
+* Instruments now trigger Skulk sensors
+* MIDI input now supports sustain pedal
+* Fixed syncing issues
+
+# 0.6.4
+
+* Backported 1.21.1 changes
+* Added note humanization
+* Fixed first-person sound and bound sound instances to entities
+* Fixed entities replacing NBT configured instruments
+* Added `rightClickToDropEntityInstrumentPermissionLevel` config
+
 # 0.6.1
 
 * Fix keyboard mapping in free playing (Thanks PhyX-Meow!)

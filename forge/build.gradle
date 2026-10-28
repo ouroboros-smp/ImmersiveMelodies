@@ -15,6 +15,15 @@ loom {
         extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
         mixinConfig "immersive_melodies.mixin.json"
     }
+
+    runs {
+        client {
+            vmArgs "-Xmx2G"
+        }
+        server {
+            vmArgs "-Xmx2G"
+        }
+    }
 }
 
 configurations {

@@ -20,6 +20,7 @@ build
 # other
 eclipse
 run
+runs
 backup
 
 # Files from Forge MDK
@@ -41,3 +42,5 @@ forge*changelog.txt
 *.blend
 *.blend1
 *.mtl
+
+.sources

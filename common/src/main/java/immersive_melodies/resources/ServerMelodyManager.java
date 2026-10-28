@@ -8,6 +8,7 @@ import net.minecraft.network.FriendlyByteBuf;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.level.saveddata.SavedData;
@@ -15,7 +16,10 @@ import net.minecraft.world.level.storage.LevelStorageSource;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.*;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 public class ServerMelodyManager {
     static final Random RANDOM = new Random();
@@ -28,11 +32,46 @@ public class ServerMelodyManager {
         directory = session.getDimensionPath(world.dimension()).resolve("data/melodies").toFile();
     }
 
-    private static File getFile(String id) {
-        File file = new File(directory, id.replace(":", "/") + ".bin");
-        //noinspection ResultOfMethodCallIgnored
-        file.getParentFile().mkdirs();
-        return file;
+    private static File getFile(String id) throws IOException {
+        Path resolved = resolveMelodyFile(directory, id);
+        Path parent = resolved.getParent();
+        if (parent != null) {
+            Files.createDirectories(parent);
+        }
+        return resolved.toFile();
+    }
+
+    /**
+     * Resolves a melody id to a file under {@code root}. Ids use {@code namespace:path};
+     * the file is {@code root/namespace/path.bin}. {@code ..} segments and paths that
+     * normalize outside {@code root} are refused. Does not create directories.
+     */
+    static Path resolveMelodyFile(File root, String id) throws IOException {
+        if (id == null || id.indexOf('\0') >= 0 || id.indexOf('\\') >= 0) {
+            throw new MelodyPathException("Refusing unsafe melody id");
+        }
+        String relative = id.replace(':', '/') + ".bin";
+        for (String segment : relative.split("/", -1)) {
+            if ("..".equals(segment)) {
+                throw new MelodyPathException("Refusing melody path traversal");
+            }
+        }
+        Path relativePath = Path.of(relative);
+        if (relativePath.isAbsolute()) {
+            throw new MelodyPathException("Refusing absolute melody path");
+        }
+        Path base = root.toPath().toAbsolutePath().normalize();
+        Path resolved = base.resolve(relativePath).normalize();
+        if (!resolved.startsWith(base)) {
+            throw new MelodyPathException("Refusing melody path outside the melody directory");
+        }
+        return resolved;
+    }
+
+    static final class MelodyPathException extends IOException {
+        MelodyPathException(String message) {
+            super(message);
+        }
     }
 
     public static CustomServerMelodiesIndex getIndex() {
@@ -66,6 +105,21 @@ public class ServerMelodyManager {
     }
 
     /**
+     * Chooses a matching datapack or uploaded melody, with each distinct ID equally likely.
+     * Call on the server thread after the melody manager is initialized.
+     *
+     * @param random The random source used for selection.
+     * @param filter A predicate for allowed melody IDs, such as a namespace filter.
+     * @return Empty if no melody matches the filter.
+     */
+    public static Optional<ResourceLocation> getRandomMelody(RandomSource random, Predicate<ResourceLocation> filter) {
+        Set<ResourceLocation> ids = new HashSet<>(getDatapackMelodies().keySet());
+        ids.addAll(getIndex().getMelodies().keySet());
+        List<ResourceLocation> melodies = ids.stream().filter(filter).toList();
+        return melodies.isEmpty() ? Optional.empty() : Optional.of(melodies.get(random.nextInt(melodies.size())));
+    }
+
+    /**
      * Registers a melody to the server and saves it to disk.
      *
      * @param identifier The identifier of the melody to register.
@@ -80,9 +134,9 @@ public class ServerMelodyManager {
             melody.encode(buffer);
 
             // Write to disk
-            BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(getFile(identifier.toString())));
-            bos.write(buffer.array());
-            bos.close();
+            try (BufferedOutputStream bos = new BufferedOutputStream(new FileOutputStream(getFile(identifier.toString())))) {
+                bos.write(buffer.array());
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -94,11 +148,19 @@ public class ServerMelodyManager {
      * @param identifier The identifier of the melody to delete.
      */
     public static void deleteMelody(ResourceLocation identifier) {
+        Path path;
+        try {
+            path = resolveMelodyFile(directory, identifier.toString());
+        } catch (IOException e) {
+            Common.LOGGER.warn("Refused to delete melody {} ({})", identifier, e);
+            return;
+        }
+
         getIndex().getMelodies().remove(identifier);
         getIndex().setDirty(true);
 
         try {
-            Files.delete(getFile(identifier.toString()).toPath());
+            Files.deleteIfExists(path);
         } catch (IOException e) {
             Common.LOGGER.error("Couldn't delete melody {} ({})", identifier, e);
         }
@@ -108,15 +170,19 @@ public class ServerMelodyManager {
         if (datapackMelodies.containsKey(identifier)) {
             return datapackMelodies.get(identifier).get();
         } else {
-            Melody melody = Melody.DEFAULT;
             try {
-                BufferedInputStream bis = new BufferedInputStream(new FileInputStream(getFile(identifier.toString())));
-                melody = new Melody(new FriendlyByteBuf(Unpooled.wrappedBuffer(bis.readAllBytes())));
+                Path path = resolveMelodyFile(directory, identifier.toString());
+                try (BufferedInputStream bis = new BufferedInputStream(new FileInputStream(path.toFile()))) {
+                    return new Melody(new FriendlyByteBuf(Unpooled.wrappedBuffer(bis.readAllBytes())));
+                }
+            } catch (MelodyPathException e) {
+                Common.LOGGER.warn("Refused melody path {}", identifier);
+                return Melody.DEFAULT;
             } catch (Exception e) {
                 Common.LOGGER.error("Couldn't load melody {} ({})", identifier, e);
                 deleteMelody(identifier);
+                return Melody.DEFAULT;
             }
-            return melody;
         }
     }
 
@@ -163,12 +229,10 @@ public class ServerMelodyManager {
                 CompoundTag map = nbt.getCompound(key);
                 Map<String, Set<Integer>> m = new HashMap<>();
                 for (String k : map.getAllKeys()) {
-                    CompoundTag set = map.getCompound(k);
-                    Set<Integer> s = new HashSet<>();
-                    for (String i : set.getAllKeys()) {
-                        s.add(set.getInt(i));
-                    }
-                    m.put(k, s);
+                    Set<Integer> tracks = Arrays.stream(map.getIntArray(k))
+                            .boxed()
+                            .collect(Collectors.toSet());
+                    m.put(k, tracks);
                 }
                 c.enabledTracks.put(new ResourceLocation(key), m);
             }
@@ -181,11 +245,13 @@ public class ServerMelodyManager {
             for (Map.Entry<ResourceLocation, Map<String, Set<Integer>>> entry : enabledTracks.entrySet()) {
                 CompoundTag map = new CompoundTag();
                 for (Map.Entry<String, Set<Integer>> e : entry.getValue().entrySet()) {
-                    CompoundTag set = new CompoundTag();
-                    for (int i : e.getValue()) {
-                        set.putInt(e.getKey(), i);
-                    }
-                    map.put(e.getKey(), set);
+                    map.putIntArray(
+                            e.getKey(),
+                            e.getValue().stream()
+                                    .mapToInt(Integer::intValue)
+                                    .sorted()
+                                    .toArray()
+                    );
                 }
                 c.put(entry.getKey().toString(), map);
             }

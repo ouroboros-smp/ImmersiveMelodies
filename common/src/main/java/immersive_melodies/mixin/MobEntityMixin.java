@@ -40,6 +40,10 @@ public abstract class MobEntityMixin extends LivingEntity {
 
     @Inject(method = "interact", at = @At("HEAD"), cancellable = true)
     private void immersiveMelodies$injectInteract(Player player, InteractionHand hand, CallbackInfoReturnable<InteractionResult> cir) {
+        if (!player.hasPermissions(Config.getInstance().rightClickToDropEntityInstrumentPermissionLevel)) {
+            return;
+        }
+
         for (ItemStack handItem : this.handItems) {
             if (handItem.getItem() instanceof InstrumentItem) {
                 ItemEntity itemEntity = spawnAtLocation(handItem.copyAndClear());

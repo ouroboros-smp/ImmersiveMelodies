@@ -9,6 +9,7 @@ import java.util.List;
 public class Track {
     private final List<Note> notes;
     private final String name;
+    private int cachedLength = -1;
 
     public Track(String name, List<Note> notes) {
         this.name = name;
@@ -43,13 +44,19 @@ public class Track {
     }
 
     public int getLength() {
-        if (notes.isEmpty()) return 0;
-        Note note = notes.get(notes.size() - 1);
-        return note.getTime() + note.getLength();
+        if (cachedLength >= 0) {
+            return cachedLength;
+        }
+        cachedLength = notes.stream()
+                .mapToInt(note -> note.getTime() + note.getLength())
+                .max()
+                .orElse(0);
+        return cachedLength;
     }
 
     public void setNotes(List<Note> notes) {
         this.notes.clear();
         this.notes.addAll(notes);
+        this.cachedLength = -1;
     }
 }

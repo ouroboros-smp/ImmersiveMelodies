@@ -11,5 +11,5 @@ public interface SoundManager {
 
     boolean audible(Entity entity);
 
-    void pauseGameMusic();
+    void suppressGameMusic();
 }

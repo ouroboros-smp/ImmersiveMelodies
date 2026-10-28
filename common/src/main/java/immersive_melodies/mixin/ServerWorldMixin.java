@@ -4,6 +4,8 @@ import immersive_melodies.item.InstrumentItem;
 import immersive_melodies.util.EntityEquiper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Entity;
+import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.gameevent.GameEvent;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,10 +32,17 @@ public class ServerWorldMixin {
 
     @Unique
     private void immersiveMelodies$tick(Entity entity) {
-        entity.getHandSlots().forEach(itemStack -> {
+        boolean playing = false;
+        for (ItemStack itemStack : entity.getHandSlots()) {
             if (itemStack.getItem() instanceof InstrumentItem item) {
                 item.inventoryServerTick(itemStack, (ServerLevel) (Object) this, entity);
+                playing |= item.isPlaying(itemStack);
             }
-        });
+        }
+
+        //noinspection ConstantValue
+        if (playing && entity.tickCount % 10 == 0) {
+            entity.gameEvent(GameEvent.INSTRUMENT_PLAY);
+        }
     }
 }

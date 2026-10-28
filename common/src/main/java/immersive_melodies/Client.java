@@ -35,12 +35,17 @@ public class Client {
     }
 
     public static boolean playNote(Entity entity, int tone, int velocity) {
+        if (entity instanceof LocalPlayer) {
+            for (ItemStack handStack : entity.getHandSlots()) {
+                if (handStack.getItem() instanceof InstrumentItem instrument && instrument.isPlaying(handStack)) {
+                    Network.sendToServer(ItemActionMessage.fromState(ItemActionMessage.State.PAUSE));
+                    break;
+                }
+            }
+        }
+
         for (ItemStack stack : entity.getAllSlots()) {
             if (stack.getItem() instanceof InstrumentItem instrument) {
-                if (entity instanceof LocalPlayer && instrument.isPlaying(stack)) {
-                    Network.sendToServer(ItemActionMessage.fromState(ItemActionMessage.State.PAUSE));
-                }
-
                 if (velocity > 0) {
                     if (!playingSounds.containsKey(tone)) {
                         Note note = new Note(tone, velocity, 0, 10_000, 200);

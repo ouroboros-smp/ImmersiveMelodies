@@ -9,6 +9,15 @@ architectury {
 
 loom {
     accessWidenerPath = project(":common").loom.accessWidenerPath
+
+    runs {
+        client {
+            vmArgs "-Xmx2G"
+        }
+        server {
+            vmArgs "-Xmx2G"
+        }
+    }
 }
 
 configurations {

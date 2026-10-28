@@ -47,45 +47,43 @@ public class MelodyProgressManager {
     private long lastTime;
 
     public void sync(long time) {
-        if (lastTime != time) {
-            lastTime = time;
-            progress.entrySet().removeIf(entry -> entry.getKey().isRemoved());
+        if (!Config.getInstance().autoSynchronize) return;
 
-            List<Entity> list = MelodyProgressManager.INSTANCE.progress.entrySet().stream()
-                    .filter(m -> m.getValue().isPlaying())
-                    .map(Map.Entry::getKey)
-                    .sorted((a, b) -> {
-                        boolean b1 = a instanceof Player;
-                        boolean b2 = b instanceof Player;
-                        if (b1 && !b2) {
-                            return 1;
-                        } else if (!b1 && b2) {
-                            return -1;
-                        } else {
-                            return getProgress(b).time - getProgress(a).time;
-                        }
-                    })
-                    .toList();
+        if (lastTime == time) return;
 
-            for (int i0 = 0; i0 < list.size(); i0++) {
-                Entity entity0 = list.get(i0);
-                for (int i1 = list.size() - 1; i1 > i0; i1--) {
-                    Entity entity1 = list.get(i1);
-                    if (entity0.distanceTo(entity1) < Config.getInstance().maxAudibleDistance) {
-                        // Two entities are close, entity 0 will try to mimic entity 1
-                        // Thus, the higher in the order the higher the priority
-                        MelodyProgress progress0 = getProgress(entity0);
-                        MelodyProgress progress1 = getProgress(entity1);
+        lastTime = time;
+        progress.entrySet().removeIf(entry -> entry.getKey().isRemoved());
 
-                        if (Math.abs(progress0.time - progress1.time) > 100) {
-                            progress0.overwrite(progress1.getCurrentlyPlaying());
-                            progress0.time = progress1.time;
-                            progress0.lastIndex.clear();
-                            progress0.lastIndex.putAll(progress1.lastIndex);
-                        }
-
-                        break;
+        List<Entity> list = MelodyProgressManager.INSTANCE.progress.entrySet().stream()
+                .filter(m -> m.getValue().isPlaying())
+                .map(Map.Entry::getKey)
+                .sorted((a, b) -> {
+                    boolean b1 = a instanceof Player;
+                    boolean b2 = b instanceof Player;
+                    if (b1 && !b2) {
+                        return 1;
+                    } else if (!b1 && b2) {
+                        return -1;
+                    } else {
+                        int comparison = Long.compare(getProgress(a).worldTime, getProgress(b).worldTime);
+                        return comparison != 0 ? comparison : Integer.compare(a.getId(), b.getId());
                     }
+                })
+                .toList();
+
+        for (int i0 = 0; i0 < list.size(); i0++) {
+            Entity entity0 = list.get(i0);
+            for (int i1 = list.size() - 1; i1 > i0; i1--) {
+                Entity entity1 = list.get(i1);
+                if (entity0.distanceTo(entity1) < Config.getInstance().maxAudibleDistance) {
+                    // Two entities are close, entity 0 will try to mimic entity 1
+                    // Thus, the higher in the order the higher the priority
+                    MelodyProgress progress0 = getProgress(entity0);
+                    MelodyProgress progress1 = getProgress(entity1);
+
+                    progress0.overwrite(progress1.getCurrentlyPlaying(), progress1.getStartTime(), time);
+
+                    break;
                 }
             }
         }

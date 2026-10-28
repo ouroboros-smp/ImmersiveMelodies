@@ -1,8 +1,10 @@
 package immersive_melodies;
 
 import io.netty.util.internal.ConcurrentSet;
+import net.minecraft.client.Minecraft;
 
 import javax.sound.midi.*;
+import java.util.HashSet;
 import java.util.Set;
 
 public class MidiListener {
@@ -51,6 +53,8 @@ public class MidiListener {
     static class MidiReceiver implements Receiver {
         private final Set<MidiDevice.Info> connectedDevices;
         private final MidiDevice.Info info;
+        private final Set<Integer> sustainedNotes = new HashSet<>();
+        private boolean sustain;
 
         public MidiReceiver(Set<MidiDevice.Info> connectedDevices, MidiDevice.Info info) {
             this.connectedDevices = connectedDevices;
@@ -61,14 +65,41 @@ public class MidiListener {
         public void send(MidiMessage message, long timeStamp) {
             if (message instanceof ShortMessage sm) {
                 int command = sm.getCommand();
-                if (command == ShortMessage.NOTE_ON) {
-                    int note = sm.getData1();
-                    int velocity = sm.getData2();
-                    Client.playNote(note, velocity);
-                } else if (command == ShortMessage.NOTE_OFF) {
-                    int note = sm.getData1();
-                    Client.playNote(note, 0);
+                int data1 = sm.getData1();
+                int data2 = sm.getData2();
+
+                Minecraft.getInstance().execute(() -> handleMessage(command, data1, data2));
+            }
+        }
+
+        private void handleMessage(int command, int data1, int data2) {
+            if (command == ShortMessage.NOTE_ON) {
+                if (data2 == 0) {
+                    noteOff(data1);
+                } else {
+                    if (sustainedNotes.remove(data1)) {
+                        Client.playNote(data1, 0);
+                    }
+                    Client.playNote(data1, data2);
                 }
+            } else if (command == ShortMessage.NOTE_OFF) {
+                noteOff(data1);
+            } else if (command == ShortMessage.CONTROL_CHANGE && data1 == 64) {
+                sustain = data2 >= 64;
+                if (!sustain) {
+                    for (int note : sustainedNotes) {
+                        Client.playNote(note, 0);
+                    }
+                    sustainedNotes.clear();
+                }
+            }
+        }
+
+        private void noteOff(int note) {
+            if (sustain) {
+                sustainedNotes.add(note);
+            } else {
+                Client.playNote(note, 0);
             }
         }
 

@@ -70,6 +70,12 @@ public class MelodyListWidget extends ObjectSelectionList<MelodyListWidget.Melod
         }
     }
 
+    @Override
+    public boolean mouseScrolled(double d, double e, double f) {
+        this.setScrollAmount(this.getScrollAmount() - f * (double) this.itemHeight);
+        return true;
+    }
+
     public class MelodyEntry extends ObjectSelectionList.Entry<MelodyEntry> {
         final ResourceLocation identifier;
         final Component name;

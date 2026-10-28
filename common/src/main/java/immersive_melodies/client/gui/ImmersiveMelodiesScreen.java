@@ -27,7 +27,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.ItemStack;
 
 import java.io.ByteArrayInputStream;
@@ -84,32 +83,37 @@ public class ImmersiveMelodiesScreen extends Screen {
 
         int y = (height - 230) / 2 + 22;
         list = new MelodyListWidget(this.minecraft, this, this.width / 2 - 75, 150, y, 162, true);
-        trackList = new MelodyListWidget(this.minecraft, this, this.width / 2 + 100, 85, y + 8, 142, false);
+        trackList = new MelodyListWidget(this.minecraft, this, this.width / 2 + 99, 92, y + 8, 142, false);
 
         refreshPage();
 
         // Select the current melody
-        if (minecraft != null && minecraft.player != null) {
-            ItemStack stack = minecraft.player.getItemInHand(InteractionHand.MAIN_HAND);
-            if (stack.getItem() instanceof InstrumentItem item) {
-                selected = item.getMelody(stack);
-            }
+        ItemStack stack = getInstrumentStack();
+        if (stack.getItem() instanceof InstrumentItem item) {
+            selected = item.getMelody(stack);
         }
     }
 
     private void updateTrackList() {
-        if (minecraft != null && minecraft.player != null) {
-            ItemStack stack = minecraft.player.getItemInHand(InteractionHand.MAIN_HAND);
-            if (stack.getItem() instanceof InstrumentItem item) {
-                Set<Integer> newEnabledTracks = item.getEnabledTracks(stack);
-                if (!Objects.equals(newEnabledTracks, enabledTracks)) {
-                    enabledTracks = new HashSet<>(newEnabledTracks);
-                    refreshPage();
-                }
-            } else {
-                enabledTracks = new HashSet<>();
+        ItemStack stack = getInstrumentStack();
+        if (stack.getItem() instanceof InstrumentItem item) {
+            Set<Integer> newEnabledTracks = item.getEnabledTracks(stack);
+            if (!Objects.equals(newEnabledTracks, enabledTracks)) {
+                enabledTracks = new HashSet<>(newEnabledTracks);
+                refreshPage();
             }
+        } else {
+            enabledTracks = new HashSet<>();
         }
+    }
+
+    private ItemStack getInstrumentStack() {
+        if (minecraft == null || minecraft.player == null) {
+            return ItemStack.EMPTY;
+        }
+
+        ItemStack mainHand = minecraft.player.getMainHandItem();
+        return mainHand.getItem() instanceof InstrumentItem ? mainHand : minecraft.player.getOffhandItem();
     }
 
     private void openHelp() {
@@ -163,11 +167,15 @@ public class ImmersiveMelodiesScreen extends Screen {
         Melody melody = MidiParser.parseMidi(inputStream, name);
         if (!melody.getTracks().isEmpty()) {
             PacketSplitter.sendToServer(name, melody);
-            search.setValue(name);
-            list.setScrollAmount(0);
+            setSearch(name);
         } else {
             setError(Component.translatable("immersive_melodies.error.empty"));
         }
+    }
+
+    public void setSearch(String query) {
+        search.setValue(query);
+        list.setScrollAmount(0);
     }
 
     @Override
@@ -291,32 +299,43 @@ public class ImmersiveMelodiesScreen extends Screen {
         }, () -> List.of(Component.translatable("immersive_melodies.tracks").getVisualOrderText())));
 
         // Free playing
-        addRenderableWidget(new TexturedButtonWidget(width / 2 - 33, y, 16, 16, BACKGROUND_TEXTURE, 256 - 48, 0, 256, 256, Component.nullToEmpty(null), button -> {
+        addRenderableWidget(new TexturedButtonWidget(width / 2 - 35, y, 16, 16, BACKGROUND_TEXTURE, 256 - 48, 0, 256, 256, Component.nullToEmpty(null), button -> {
             if (minecraft != null) {
                 minecraft.setScreen(new ImmersiveMelodiesFreePlayingScreen());
             }
         }, () -> List.of(Component.translatable("immersive_melodies.keyboard").getVisualOrderText())));
 
         // Pause
-        addRenderableWidget(new TexturedButtonWidget(width / 2 - 8, y, 16, 16, BACKGROUND_TEXTURE, 256 - 32, 32, 256, 256, Component.nullToEmpty(null), button -> {
+        addRenderableWidget(new TexturedButtonWidget(width / 2 - 15, y, 16, 16, BACKGROUND_TEXTURE, 256 - 32, 32, 256, 256, Component.nullToEmpty(null), button -> {
             Network.sendToServer(ItemActionMessage.fromState(ItemActionMessage.State.PAUSE));
         }, () -> List.of(Component.translatable("immersive_melodies.pause").getVisualOrderText())));
 
         // Play
-        addRenderableWidget(new TexturedButtonWidget(width / 2 + 8, y, 16, 16, BACKGROUND_TEXTURE, 256 - 16, 32, 256, 256, Component.nullToEmpty(null), button -> {
+        addRenderableWidget(new TexturedButtonWidget(width / 2 + 5, y, 16, 16, BACKGROUND_TEXTURE, 256 - 16, 32, 256, 256, Component.nullToEmpty(null), button -> {
             Network.sendToServer(ItemActionMessage.fromState(ItemActionMessage.State.CONTINUE));
         }, () -> List.of(Component.translatable("immersive_melodies.play").getVisualOrderText())));
 
+        int actionX = width / 2 + 25;
+
         // Delete
         if (selected != null && (Utils.canDelete(selected, Minecraft.getInstance().player))) {
-            addRenderableWidget(new TexturedButtonWidget(width / 2 + 30, y, 16, 16, BACKGROUND_TEXTURE, 256 - 16, 16, 256, 256, Component.nullToEmpty(null), button -> {
+            addRenderableWidget(new TexturedButtonWidget(actionX, y, 16, 16, BACKGROUND_TEXTURE, 256 - 16, 16, 256, 256, Component.nullToEmpty(null), button -> {
                 Network.sendToServer(new MelodyDeleteRequest(selected));
                 selected = null;
             }, () -> List.of(Component.translatable("immersive_melodies.delete").getVisualOrderText())));
+            actionX += 20;
         }
 
+        // Upload
+        addRenderableWidget(new TexturedButtonWidget(actionX, y, 16, 16, BACKGROUND_TEXTURE, 256 - 48, 48, 256, 256, Component.empty(), button -> {
+            if (minecraft != null) {
+                minecraft.setScreen(new MelodyUploadScreen(this));
+            }
+        }, () -> List.of(Component.translatable("immersive_melodies.upload").getVisualOrderText())));
+        actionX += 20;
+
         // Help
-        addRenderableWidget(new TexturedButtonWidget(width / 2 + 50, y, 16, 16, BACKGROUND_TEXTURE, 256 - 48, 32, 256, 256, Component.nullToEmpty(null), button -> {
+        addRenderableWidget(new TexturedButtonWidget(actionX, y, 16, 16, BACKGROUND_TEXTURE, 256 - 48, 32, 256, 256, Component.nullToEmpty(null), button -> {
             openHelp();
             if (!Config.getInstance().clickedHelp) {
                 Config.getInstance().clickedHelp = true;
